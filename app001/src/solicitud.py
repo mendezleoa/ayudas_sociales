@@ -70,7 +70,7 @@ def build_personal_data_section():
 
     return ft.Container(
         padding=10,
-        bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.BLACK), # Opcional: fondo sutil
+        #bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.BLACK), # Opcional: fondo sutil
         #border_radius=8,
         expand=True,
         content=ft.Column(
@@ -118,36 +118,83 @@ def build_geographical_data_section():
     ), address_field, city_field, state_field, postal_code_field, zone_field
 
 def build_family_group_section():
+    """Construye la sección de grupo familiar del formulario."""
     family_members_field = ft.TextField(
         label="Número de Miembros*",
         expand=1,
         keyboard_type=ft.KeyboardType.NUMBER,
         input_filter=ft.InputFilter(allow=True, regex_string=r"[0-9]")
     )
-    family_details_field = ft.TextField(
-        label="Detalles Relevantes del Grupo Familiar (Edades, condiciones especiales, etc.)",
-        multiline=True,
-        min_lines=3,
-        max_lines=5,
+    
+    # Campos para cada miembro familiar
+    member_fields = []
+    
+    def add_member_fields():
+        """Crea y retorna un contenedor con campos para un miembro familiar."""
+        member_container = ft.Container(
+            content=ft.Column([
+                ft.TextField(label="Nombre Completo*", expand=True),
+                ft.TextField(label="Identificación*", expand=True),
+                ft.TextField(label="Relación/Parentesco*", expand=True),
+                ft.TextField(
+                    label="Fecha de Nacimiento",
+                    hint_text="DD/MM/AAAA",
+                    expand=True
+                ),
+                ft.TextField(
+                    label="Condiciones Especiales",
+                    multiline=True,
+                    min_lines=2,
+                    max_lines=3,
+                    expand=True
+                ),
+                ft.Divider(height=10, color="transparent"),
+            ]),
+            padding=10,
+            border=ft.border.all(1, ft.colors.GREY_400),
+            border_radius=8,
+            margin=ft.margin.only(bottom=10)
+        )
+        member_fields.append(member_container)
+        return member_container
+    def update_member_fields(e):
+        """Actualiza los campos de miembros según el número ingresado."""
+        try:
+            num_members = int(family_members_field.value or 0)
+            current_members = len(member_fields)
+            
+            if num_members > current_members:
+                # Agregar campos adicionales
+                for _ in range(num_members - current_members):
+                    members_column.controls.append(add_member_fields())
+            elif num_members < current_members:
+                # Remover campos excedentes
+                for _ in range(current_members - num_members):
+                    member_fields.pop()
+                    members_column.controls.pop()
+            
+            e.page.update()
+        except ValueError:
+            pass
+    family_members_field.on_change = update_member_fields
+    
+    members_column = ft.Column(
+        spacing=15,
+        scroll=ft.ScrollMode.AUTO,
         expand=True
     )
-
-    # Asociar validaciones
-    family_members_field.on_change = lambda e: validate_numeric(family_members_field, "Número de miembros")
-
     return ft.Container(
         padding=ft.padding.all(15),
-        #border_radius=ft.border_radius.all(8),
         expand=True,
         content=ft.Column(
             spacing=15,
             controls=[
                 ft.Row([family_members_field]),
-                ft.Row([family_details_field]),
+                members_column,
             ],
         )
-    ), family_members_field, family_details_field
-
+    ), family_members_field, member_fields
+    
 def build_case_details_section():
     case_description_field = ft.TextField(
         label="Descripción Detallada de la Necesidad*",
@@ -263,7 +310,9 @@ def main(page: ft.Page):
                 postal_f.value,
                 zone_f.value,
                 int(members_f.value), # Convertir a entero
-                details_f.value, # Puede ser None
+                #details_f.value, # Puede ser None
+                #details_f.value if hasattr(details_f, 'value') else details_f,
+                None,
                 desc_f.value,
                 aid_dd.value,
                 urgency_dd.value,
