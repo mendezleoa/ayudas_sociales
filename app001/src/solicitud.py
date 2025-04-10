@@ -69,19 +69,19 @@ def build_personal_data_section():
     email_field.on_change = lambda e: validate_email(email_field)
 
     return ft.Container(
-        padding=ft.padding.all(15),
+        padding=10,
         bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.BLACK), # Opcional: fondo sutil
-        border_radius=ft.border_radius.all(8),
+        #border_radius=8,
         expand=True,
         content=ft.Column(
-            spacing=15,
+            spacing=10,
             controls=[
                 ft.Row([name_field, id_field]),
                 ft.Row([birth_date_field]),
                 ft.Row([phone_field, email_field]),
             ],
-            expand=True,
-            scroll=ft.ScrollMode.ADAPTIVE,
+            #expand=True,
+            #scroll=ft.ScrollMode.ADAPTIVE,
         )
     ), name_field, id_field, birth_date_field, phone_field, email_field
 
@@ -105,7 +105,7 @@ def build_geographical_data_section():
 
     return ft.Container(
         padding=ft.padding.all(15),
-        border_radius=ft.border_radius.all(8),
+        #border_radius=ft.border_radius.all(8),
         expand=True,
         content=ft.Column(
             spacing=15,
@@ -137,7 +137,7 @@ def build_family_group_section():
 
     return ft.Container(
         padding=ft.padding.all(15),
-        border_radius=ft.border_radius.all(8),
+        #border_radius=ft.border_radius.all(8),
         expand=True,
         content=ft.Column(
             spacing=15,
@@ -178,7 +178,7 @@ def build_case_details_section():
 
     return ft.Container(
         padding=ft.padding.all(15),
-        border_radius=ft.border_radius.all(8),
+        #border_radius=ft.border_radius.all(8),
         expand=True,
         content=ft.Column(
             spacing=15,
@@ -316,18 +316,53 @@ def main(page: ft.Page):
             # ------------------------------------------
 
 
+    # Función para actualizar el contenido de cada pestaña
+    def tab_changed(e):
+        # Con esta función podrías actualizar dinámicamente los elementos dentro de la pestaña seleccionada.
+        # En este ejemplo, mostramos un mensaje simple en cada tab.
+        selected_tab = tabs.tabs[tabs.selected_index]
+        # Puedes reconfigurar selected_tab.content si necesitas actualizar su contenido dinámicamente.
+        page.update()
+    # Definición de las pestañas. Cada pestaña tiene un contenedor (Container) que agrupa sus widgets.
+    tabs2 = ft.Tabs(
+        tabs=[
+            ft.Tab(
+                text="Tab 1",
+                content=ft.Container(
+                    content=ft.Column(
+                        controls=[
+                            ft.Text("Contenido inicial del Tab 1"),
+                            ft.ElevatedButton(text="Acción 1", on_click=lambda e: print("Acción en Tab 1"))
+                        ],
+                        spacing=10
+                    ),
+                    padding=10
+                )
+            ),
+            ft.Tab(
+                text="Tab 2",
+                content=ft.Container(
+                    content=ft.Column(
+                        controls=[
+                            ft.Text("Contenido inicial del Tab 2"),
+                            ft.ElevatedButton(text="Acción 2", on_click=lambda e: print("Acción en Tab 2"))
+                        ],
+                        spacing=10
+                    ),
+                    padding=10
+                )
+            ),
+        ],
+        on_change=tab_changed  # Se activa cuando se cambia de pestaña
+    )
+
+
     # --- Tabs ---
     tabs = ft.Tabs(
         selected_index=0,
         animation_duration=300,
         expand=True,
         tabs=[
-            ft.Tab(
-                text="Tab 1",
-                content=ft.Column(
-                    controls=[ft.Text("This is Tab 1")],
-                ),
-            ),
             ft.Tab(text="1. Datos Personales", content=personal_section_content),
             ft.Tab(text="2. Datos Geográficos", content=geo_section_content),
             ft.Tab(text="3. Grupo Familiar", content=family_section_content),
