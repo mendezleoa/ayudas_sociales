@@ -1,125 +1,90 @@
+# c:\Users\lmendez\Desktop\Desarrollo en Flet\ayudas_sociales\app001\src\plantilla.py
 import flet as ft
-from ui.app_bar import build_app_bar
-from ui.menu import build_navigation_rail
-from database import get_all_requests, create_connection, create_table
+# Quitar import de build_app_bar y build_navigation_rail si no se usan aquí
+# from ui.app_bar import build_app_bar
+# from ui.menu import build_navigation_rail
+from database import get_all_requests, create_connection
 
-# Global State
-dummy_data = {
-    0: {"name": "Apple", "description": "Red and juicy", "quantity": 5, "price": 1.99},
-    1: {
-        "name": "Bread",
-        "description": "Whole wheat loaf",
-        "quantity": 2,
-        "price": 3.49,
-    },
-    2: {
-        "name": "Milk",
-        "description": "Organic whole milk",
-        "quantity": 1,
-        "price": 2.99,
-    },
-    3: {
-        "name": "Carrot",
-        "description": "Fresh and crunchy",
-        "quantity": 10,
-        "price": 0.99,
-    },
-    4: {
-        "name": "Eggs",
-        "description": "Free-range brown eggs",
-        "quantity": 12,
-        "price": 2.79,
-    },
-    5: {
-        "name": "Chicken",
-        "description": "Boneless skinless breasts",
-        "quantity": 2,
-        "price": 7.99,
-    },
-    6: {
-        "name": "Banana",
-        "description": "Ripe and yellow",
-        "quantity": 6,
-        "price": 0.49,
-    },
-}
-
-items = dummy_data
-counter = len(items)
-data_table_rows = []
+# Global State (simplificado) - Considerar encapsular en una clase si la app crece
 search_term = ""
+# Referencia global a la tabla para poder refrescarla desde fuera si es necesario
+# (Aunque pasarla como argumento suele ser más limpio)
+_data_table_instance = None
 
+# --- Data Table Functions ---
 
-# --- Data Management Functions ---
+def fill_data_table(page: ft.Page, data_table: ft.DataTable):
+    """
+    Obtiene datos de la base de datos 'solicitudes', los filtra
+    y rellena la tabla principal.
+    """
+    global _data_table_instance
+    _data_table_instance = data_table # Guardar referencia
 
-def display_requests(page):
-    """Muestra las solicitudes registradas en una tabla."""
-    
-    # Crear contenedor principal
-    main_container = ft.Container(
-        expand=True,
-        content=ft.Column(
-            controls=[
-                ft.Text("Solicitudes Registradas", size=20, weight="bold"),
-                ft.DataTable(
-                    columns=[
-                        ft.DataColumn(ft.Text("ID")),
-                        ft.DataColumn(ft.Text("Nombre")),
-                        ft.DataColumn(ft.Text("Identificación")), 
-                        ft.DataColumn(ft.Text("Teléfono")),
-                        ft.DataColumn(ft.Text("Email")),
-                        ft.DataColumn(ft.Text("Ciudad")),
-                        ft.DataColumn(ft.Text("Tipo Ayuda")),
-                        ft.DataColumn(ft.Text("Urgencia"))
-                    ],
-                    rows=[]
-                )
-            ]
-        ),
-        padding=20
-    )
-    
-    # Obtener conexión y datos
-    conn = create_connection()
-    if conn:
+    data_table.rows.clear() # Limpiar filas existentes
+    conn = None
+    new_rows = []
+
+    try:
+        conn = create_connection()
+        if not conn:
+            if page: # Solo mostrar snackbar si page está disponible
+                 page.show_snack_bar(ft.SnackBar(ft.Text("Error: No se pudo conectar a la base de datos."), open=True))
+            data_table.rows = []
+            if data_table.page: data_table.update() # Actualizar si la tabla está en una página
+            return
+
         requests = get_all_requests(conn)
-        table = main_container.content.controls[1]
-        
-        # Agregar filas a la tabla
+
         for req in requests:
-            table.rows.append(
-                ft.DataRow(
-                    cells=[
-                        ft.DataCell(ft.Text(str(req[0]))),  # ID
-                        ft.DataCell(ft.Text(req[1])),       # Nombre
-                        ft.DataCell(ft.Text(req[2])),       # Identificación
-                        ft.DataCell(ft.Text(req[4])),       # Teléfono
-                        ft.DataCell(ft.Text(req[5])),       # Email
-                        ft.DataCell(ft.Text(req[7])),       # Ciudad
-                        ft.DataCell(ft.Text(req[14])),      # Tipo Ayuda
-                        ft.DataCell(ft.Text(req[15]))       # Urgencia
-                    ]
+            # Extraer datos relevantes (ajusta índices si tu SELECT cambia)
+            id_val = str(req[0])
+            nombre_val = req[1]
+            identificacion_val = req[2]
+            telefono_val = req[4] if req[4] else "-"
+            ciudad_val = req[7]
+            tipo_ayuda_val = req[14]
+            urgencia_val = req[15]
+
+            row_content_lower = f"{id_val} {nombre_val} {identificacion_val} {telefono_val} {ciudad_val} {tipo_ayuda_val} {urgencia_val}".lower()
+
+            is_visible = True
+            if search_term and search_term not in row_content_lower:
+                is_visible = False
+
+            if is_visible:
+                new_rows.append(
+                    ft.DataRow(
+                        cells=[
+                            ft.DataCell(ft.Text(id_val, color="black")),
+                            ft.DataCell(ft.Text(nombre_val, color="black")),
+                            ft.DataCell(ft.Text(identificacion_val, color="black")),
+                            ft.DataCell(ft.Text(telefono_val, color="black")),
+                            ft.DataCell(ft.Text(ciudad_val, color="black")),
+                            ft.DataCell(ft.Text(tipo_ayuda_val, color="black")),
+                            ft.DataCell(ft.Text(urgencia_val, color="black")),
+                            # TODO: Añadir botones de acción (Ver/Editar/Eliminar)
+                        ]
+                    )
                 )
-            )
-        conn.close()
-        
-    # Actualizar la página
-    page.clean()
-    page.add(main_container)
-    page.update()
 
-def get_items():
-    return items
+    except Exception as e:
+        print(f"Error al llenar la tabla: {e}")
+        if page: # Solo mostrar snackbar si page está disponible
+            page.show_snack_bar(ft.SnackBar(ft.Text(f"Error al cargar datos: {e}"), open=True))
+        new_rows = [ft.DataRow(cells=[ft.DataCell(ft.Text("Error al cargar datos", color="red", colspan=7))])]
+    finally:
+        if conn:
+            conn.close()
 
-def add_item(data: dict):
-    global counter
-    items[counter] = data
-    counter += 1
+    data_table.rows = new_rows
+    if data_table.page: data_table.update() # Actualizar si la tabla está en una página
 
 # --- UI Element Creation Functions ---
+# create_search_field, create_search_bar se mantienen igual
 
-
-def create_search_field(on_change_function):
+def create_search_field(on_change_handler):
+    """Crea el campo de texto para la búsqueda."""
     return ft.TextField(
         border_color="transparent",
         height=20,
@@ -128,12 +93,12 @@ def create_search_field(on_change_function):
         cursor_color="white",
         cursor_width=1,
         color="white",
-        hint_text="Search",
-        on_change=on_change_function,
+        hint_text="Buscar...",
+        on_change=on_change_handler,
     )
 
-
-def create_search_bar(control: ft.TextField):
+def create_search_bar(search_field_control: ft.TextField):
+    """Crea el contenedor de la barra de búsqueda."""
     return ft.Container(
         width=350,
         bgcolor="white10",
@@ -145,236 +110,125 @@ def create_search_bar(control: ft.TextField):
             spacing=10,
             vertical_alignment="center",
             controls=[
-                ft.Icon(
-                    name=ft.Icons.SEARCH_ROUNDED,
-                    size=17,
-                    opacity=0.85,
-                ),
-                control,
-            ],
-        ),
-    )
-
-
-def create_text_field():
-    return ft.TextField(
-        border_color="transparent",
-        height=20,
-        text_size=13,
-        content_padding=0,
-        cursor_color="black",
-        cursor_width=1,
-        cursor_height=18,
-        color="black",
-    )
-
-
-def create_text_field_container(expand: bool | int, name: str, control: ft.TextField):
-    return ft.Container(
-        expand=expand,
-        height=45,
-        bgcolor="#ebebeb",
-        border_radius=6,
-        padding=8,
-        content=ft.Column(
-            spacing=1,
-            controls=[
-                ft.Text(value=name, size=9, color="black", weight="bold"),
-                control,
+                ft.Icon(name=ft.icons.SEARCH_ROUNDED, size=17, opacity=0.85),
+                search_field_control,
             ],
         ),
     )
 
 
 # --- Event Handlers ---
-
-
-def toggle_search(e: ft.HoverEvent, search_bar_control):
+# toggle_search se mantiene igual
+def toggle_search(e: ft.HoverEvent, search_bar_control: ft.Container):
+    """Muestra u oculta la barra de búsqueda al pasar el ratón sobre el header."""
     search_bar_control.opacity = 1 if e.data == "true" else 0
     search_bar_control.update()
 
-
-def filter_dt_rows(e, data_table):
+# filter_dt_rows necesita page y data_table
+def filter_dt_rows(e: ft.ControlEvent, page: ft.Page, data_table: ft.DataTable):
+    """Actualiza el término de búsqueda y rellena la tabla."""
     global search_term
-    search_term = e.control.value.lower()
-    fill_data_table(data_table)
-
-
-def submit_data(
-    e: ft.TapEvent,
-    row1_value,
-    row2_value,
-    row3_value,
-    row4_value,
-    data_table,
-    form_content,
-):
-    data = {
-        "col1": row1_value.value,
-        "col2": row2_value.value,
-        "col3": row3_value.value,
-        "col4": row4_value.value,
-    }
-
-    add_item(data)
-    clear_entries(row1_value, row2_value, row3_value, row4_value, form_content)
-    fill_data_table(data_table)
-
-
-def clear_entries(row1_value, row2_value, row3_value, row4_value, form_content):
-    row1_value.value = ""
-    row2_value.value = ""
-    row3_value.value = ""
-    row4_value.value = ""
-    form_content.update()
-
-
-# --- Data Table Functions ---
-
-
-def fill_data_table(data_table):
-    global data_table_rows
-    data_table.rows.clear()
-    data_table_rows = []
-
-    for values in items.values():
-        data_cells = [
-            ft.DataCell(ft.Text(value, color="black")) for value in values.values()
-        ]
-        data_row = ft.DataRow(cells=data_cells, visible=True)
-        if search_term:
-            data_row.visible = search_term in data_row.cells[0].content.value.lower()
-        data_table_rows.append(data_row)
-
-    data_table.rows = data_table_rows
-    data_table.update()
-
+    search_term = e.control.value.lower().strip()
+    fill_data_table(page, data_table) # Volver a llenar la tabla aplicando el filtro
 
 # --- Main UI Building Functions ---
+# build_header y build_data_table se mantienen igual en su estructura interna
 
-
-def build_header(data_table):
+def build_header(page: ft.Page, data_table: ft.DataTable):
+    """Construye el encabezado con título y barra de búsqueda."""
     header_style = {
         "height": 60,
         "bgcolor": "#081d33",
         "border_radius": ft.border_radius.only(top_left=15, top_right=15),
         "padding": ft.padding.only(left=15, right=15),
     }
-
-    search_value = create_search_field(lambda e: filter_dt_rows(e, data_table))
-    search_bar_control = create_search_bar(search_value)
-
+    search_on_change_handler = lambda event: filter_dt_rows(event, page, data_table)
+    search_value_field = create_search_field(search_on_change_handler)
+    search_bar_control = create_search_bar(search_value_field)
     header_container = ft.Container(
-        **header_style, on_hover=lambda e: toggle_search(e, search_bar_control)
+        **header_style,
+        on_hover=lambda hover_event: toggle_search(hover_event, search_bar_control)
     )
     header_container.content = ft.Row(
         alignment="spaceBetween",
         controls=[
-            ft.Text("Line Indent"),
+            ft.Text("Solicitudes Registradas", color="white"),
             search_bar_control,
-            ft.IconButton("person"),
         ],
     )
-
     return header_container
 
-
-def build_form(data_table):
-    form_style = {
-        "border_radius": 8,
-        "border": ft.border.all(1, "#ebebeb"),
-        "bgcolor": "white10",
-        "padding": 15,
-    }
-
-    row1_value = create_text_field()
-    row2_value = create_text_field()
-    row3_value = create_text_field()
-    row4_value = create_text_field()
-
-    row1 = create_text_field_container(True, "Row One", row1_value)
-    row2 = create_text_field_container(3, "Row Two", row2_value)
-    row3 = create_text_field_container(1, "Row Three", row3_value)
-    row4 = create_text_field_container(1, "Row Four", row4_value)
-
-    submit_button = ft.ElevatedButton(
-        text="Submit",
-        style=ft.ButtonStyle(shape={"": ft.RoundedRectangleBorder(radius=8)}),
-        on_click=lambda e: submit_data(
-            e, row1_value, row2_value, row3_value, row4_value, data_table, form_content
-        ),
-    )
-
-    form_content = ft.Column(
-        expand=True,
-        controls=[
-            ft.Row(controls=[row1]),
-            ft.Row(controls=[row2, row3, row4]),
-            ft.Row(controls=[submit_button], alignment="end"),
-        ],
-    )
-
-    form_container = ft.Container(**form_style, content=form_content)
-    return form_container, form_content, row1_value, row2_value, row3_value, row4_value
-
-
 def build_data_table():
-    column_names = ["Column One", "Column Two", "Column Three", "Column Four"]
-
+    """Construye la estructura inicial del DataTable para las solicitudes."""
+    column_names = ["ID", "Nombre", "Identificación", "Teléfono", "Ciudad", "Tipo Ayuda", "Urgencia"]
     data_table_style = {
         "expand": True,
         "border_radius": 8,
-        "border": ft.border.all(2, "#ebebeb"),
+        "border": ft.border.all(1, "#ebebeb"),
         "horizontal_lines": ft.border.BorderSide(1, "#ebebeb"),
         "columns": [
-            ft.DataColumn(ft.Text(index, size=12, color="black", weight="bold"))
-            for index in column_names
+            ft.DataColumn(ft.Text(name, size=12, color="black", weight="bold"))
+            for name in column_names
         ],
+        "rows": [],
     }
-
-    data_table = ft.DataTable(**data_table_style, rows=[])
+    data_table = ft.DataTable(**data_table_style)
     return data_table
 
+# --- Función para construir la VISTA ---
+def build_solicitudes_view(page: ft.Page):
+    """
+    Construye el contenido de la vista de lista de solicitudes.
 
-def main(page: ft.Page):
-    page.bgcolor = "#fdfdfd"
-    # Add the appbar
-    page.appbar = build_app_bar()
+    Args:
+        page: La instancia de la página (necesaria para handlers como SnackBar).
 
+    Returns:
+        ft.Control: El control principal (Column) que contiene esta vista.
+    """
     data_table = build_data_table()
-    header = build_header(data_table)
-    form, form_content, row1_value, row2_value, row3_value, row4_value = build_form(
-        data_table
-    )
+    header = build_header(page, data_table)
 
-    # Navigation Rail
-    rail = build_navigation_rail()
+    # Cargar datos iniciales en la tabla *después* de crearla
+    fill_data_table(page, data_table)
 
-    page.add(
-        ft.Row(
-            [
-                rail,
-                ft.VerticalDivider(width=1),
-                ft.Column(
+    # Contenido principal de esta vista
+    view_content = ft.Column(
+        expand=True,
+        controls=[
+            header,
+            ft.Divider(height=5, color="transparent"),
+            ft.Container(
+                expand=True,
+                padding=ft.padding.only(left=15, right=15, bottom=15),
+                content=ft.Column(
+                    scroll=ft.ScrollMode.HIDDEN,
                     expand=True,
                     controls=[
-                        header,
-                        ft.Divider(height=2, color="transparent"),
-                        form,
-                        ft.Column(
-                            scroll="hidden",
-                            expand=True,
-                            controls=[ft.Row(controls=[data_table])],
-                        ),
+                        ft.Row(controls=[data_table])
                     ],
-                ),
-            ],
-            expand=True,
-        )
+                )
+            )
+        ],
     )
+    return view_content
 
+# --- Bloque de prueba ---
+def _test_main(page: ft.Page):
+    """Función para probar esta vista de forma aislada."""
+    page.title = "Test Vista Solicitudes"
+    page.bgcolor = "#fdfdfd"
+    page.padding = 10
+
+    # Construye el contenido de la vista
+    vista = build_solicitudes_view(page)
+
+    # Añade el contenido a la página de prueba
+    page.add(vista)
     page.update()
-    fill_data_table(data_table)
 
-
-ft.app(target=main)
+if __name__ == "__main__":
+    # Opcional: Asegurar DB/Tabla
+    # conn = create_connection()
+    # if conn: create_table(conn); conn.close()
+    ft.app(target=_test_main) # Ejecuta la función de prueba
