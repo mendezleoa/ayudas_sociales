@@ -1,6 +1,7 @@
 import flet as ft
 from ui.app_bar import build_app_bar
 from ui.menu import build_navigation_rail
+from database import get_all_requests, create_connection, create_table
 
 # Global State
 dummy_data = {
@@ -51,16 +52,69 @@ search_term = ""
 
 # --- Data Management Functions ---
 
+def display_requests(page):
+    """Muestra las solicitudes registradas en una tabla."""
+    
+    # Crear contenedor principal
+    main_container = ft.Container(
+        expand=True,
+        content=ft.Column(
+            controls=[
+                ft.Text("Solicitudes Registradas", size=20, weight="bold"),
+                ft.DataTable(
+                    columns=[
+                        ft.DataColumn(ft.Text("ID")),
+                        ft.DataColumn(ft.Text("Nombre")),
+                        ft.DataColumn(ft.Text("Identificación")), 
+                        ft.DataColumn(ft.Text("Teléfono")),
+                        ft.DataColumn(ft.Text("Email")),
+                        ft.DataColumn(ft.Text("Ciudad")),
+                        ft.DataColumn(ft.Text("Tipo Ayuda")),
+                        ft.DataColumn(ft.Text("Urgencia"))
+                    ],
+                    rows=[]
+                )
+            ]
+        ),
+        padding=20
+    )
+    
+    # Obtener conexión y datos
+    conn = create_connection()
+    if conn:
+        requests = get_all_requests(conn)
+        table = main_container.content.controls[1]
+        
+        # Agregar filas a la tabla
+        for req in requests:
+            table.rows.append(
+                ft.DataRow(
+                    cells=[
+                        ft.DataCell(ft.Text(str(req[0]))),  # ID
+                        ft.DataCell(ft.Text(req[1])),       # Nombre
+                        ft.DataCell(ft.Text(req[2])),       # Identificación
+                        ft.DataCell(ft.Text(req[4])),       # Teléfono
+                        ft.DataCell(ft.Text(req[5])),       # Email
+                        ft.DataCell(ft.Text(req[7])),       # Ciudad
+                        ft.DataCell(ft.Text(req[14])),      # Tipo Ayuda
+                        ft.DataCell(ft.Text(req[15]))       # Urgencia
+                    ]
+                )
+            )
+        conn.close()
+        
+    # Actualizar la página
+    page.clean()
+    page.add(main_container)
+    page.update()
 
 def get_items():
     return items
-
 
 def add_item(data: dict):
     global counter
     items[counter] = data
     counter += 1
-
 
 # --- UI Element Creation Functions ---
 

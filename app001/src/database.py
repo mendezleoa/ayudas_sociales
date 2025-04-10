@@ -74,7 +74,19 @@ def insert_family_member(conn,member_data):
     except sqlite3.Error as e:
         print(f"Error al insertar miembro familiar: {e}")
         return None
-    
+
+def get_all_requests(conn):
+    """Obtiene todas las solicitudes."""
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT * FROM solicitudes 
+        """)
+        return cursor.fetchall()
+    except sqlite3.Error as e:
+        print(f"Error al obtener las solicitudes: {e}")
+        return []
+
 def get_family_members(conn, solicitud_id):
     """Obtiene todos los miembros familiares de una solicitud."""
     try:

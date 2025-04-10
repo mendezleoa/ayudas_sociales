@@ -151,7 +151,7 @@ def build_family_group_section():
                 ft.Divider(height=10, color="transparent"),
             ]),
             padding=10,
-            border=ft.border.all(1, ft.colors.GREY_400),
+            border=ft.border.all(1, ft.Colors.GREY_400),
             border_radius=8,
             margin=ft.margin.only(bottom=10)
         )
@@ -363,48 +363,6 @@ def main(page: ft.Page):
             validation_snackbar.open = True
             page.update() # Actualizar para mostrar mensajes de error Y el SnackBar
             # ------------------------------------------
-
-
-    # Función para actualizar el contenido de cada pestaña
-    def tab_changed(e):
-        # Con esta función podrías actualizar dinámicamente los elementos dentro de la pestaña seleccionada.
-        # En este ejemplo, mostramos un mensaje simple en cada tab.
-        selected_tab = tabs.tabs[tabs.selected_index]
-        # Puedes reconfigurar selected_tab.content si necesitas actualizar su contenido dinámicamente.
-        page.update()
-    # Definición de las pestañas. Cada pestaña tiene un contenedor (Container) que agrupa sus widgets.
-    tabs2 = ft.Tabs(
-        tabs=[
-            ft.Tab(
-                text="Tab 1",
-                content=ft.Container(
-                    content=ft.Column(
-                        controls=[
-                            ft.Text("Contenido inicial del Tab 1"),
-                            ft.ElevatedButton(text="Acción 1", on_click=lambda e: print("Acción en Tab 1"))
-                        ],
-                        spacing=10
-                    ),
-                    padding=10
-                )
-            ),
-            ft.Tab(
-                text="Tab 2",
-                content=ft.Container(
-                    content=ft.Column(
-                        controls=[
-                            ft.Text("Contenido inicial del Tab 2"),
-                            ft.ElevatedButton(text="Acción 2", on_click=lambda e: print("Acción en Tab 2"))
-                        ],
-                        spacing=10
-                    ),
-                    padding=10
-                )
-            ),
-        ],
-        on_change=tab_changed  # Se activa cuando se cambia de pestaña
-    )
-
 
     # --- Tabs ---
     tabs = ft.Tabs(
