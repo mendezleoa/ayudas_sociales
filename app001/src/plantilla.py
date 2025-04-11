@@ -110,7 +110,7 @@ def create_search_bar(search_field_control: ft.TextField):
             spacing=10,
             vertical_alignment="center",
             controls=[
-                ft.Icon(name=ft.icons.SEARCH_ROUNDED, size=17, opacity=0.85),
+                ft.Icon(name=ft.Icons.SEARCH_ROUNDED, size=17, opacity=0.85),
                 search_field_control,
             ],
         ),

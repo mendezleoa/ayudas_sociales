@@ -3,172 +3,263 @@ import flet as ft
 
 # --- Importar componentes de UI ---
 from ui.app_bar import build_app_bar
-from ui.menu import build_navigation_rail, VIEW_SOLICITUDES_LIST, VIEW_ADD_SOLICITUD, VIEW_SETTINGS, VIEW_HOME
+# Importar todas las constantes de vista desde menu.py
+from ui.menu import (
+    build_navigation_rail,
+    VIEW_HOME,
+    VIEW_SOLICITUDES_LIST,
+    VIEW_SETTINGS,
+    VIEW_MANAGE_AID_TYPES, # <-- Índice para gestionar tipos de ayuda
+    VIEW_ADD_SOLICITUD
+)
 
 # --- Importar constructores de Vistas ---
-from plantilla import build_solicitudes_view, fill_data_table, _data_table_instance # Importar función de refresco y tabla
+from plantilla import build_solicitudes_view, fill_data_table, _data_table_instance
 from solicitud import build_solicitud_form_view
+# Asegúrate de que la importación de AidTypesView sea correcta
+from aid_types import AidTypesView
 
 # --- Importar funciones de Base de Datos (para inicialización) ---
 from database import create_connection, create_table
 
-# --- Modelo de Datos de Usuario (Temporal) ---
-# Considera mover esto a un lugar más seguro o usar un sistema de autenticación real
-users = {
-    "operador1": {"password": "pass1", "role": "operador"},
-    "admin1": {"password": "adminpass", "role": "administrador"},
-    # Puedes añadir más usuarios aquí
-}
+# --- Estado Global Simple ---
+# Contenedor principal donde se mostrarán las vistas
+view_container = ft.Container(expand=True, padding=ft.padding.all(15))
+# Variables para almacenar las instancias de las vistas y evitar recrearlas innecesariamente
+solicitudes_list_view = None
+solicitud_form_view = None
+settings_view = None
+aid_types_crud_view = None # <-- Variable para la instancia de la vista CRUD
 
-# --- Estado Global Simple (para referencias a controles principales) ---
-# En una app más grande, considera usar una clase App o un gestor de estado
-view_container = ft.Container(expand=True, padding=ft.padding.all(15)) # Contenedor donde se mostrarán las vistas
-solicitudes_list_view = None # Referencia a la vista de lista (se construye después del login)
-solicitud_form_view = None # Referencia a la vista de formulario (se construye después del login)
-settings_view = None # Placeholder para la vista de configuración
-
-# --- Funciones de Autenticación ---
+# --- Funciones de Autenticación (sin cambios) ---
 def authenticate(username, password):
     """Verifica si el usuario y la contraseña son correctos."""
-    user = users.get(username)
-    if user and user["password"] == password:
-        return user["role"]
-    return None
+    conn = create_connection()
+    if conn:
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT role FROM users WHERE username = ? AND password = ?",
+                (username, password)
+            )
+            result = cursor.fetchone()
+            if result:
+                print(f"Autenticación exitosa para {username}. Rol: {result[0]}")
+                return result[0] # Devuelve el rol
+            else:
+                print(f"Autenticación fallida para {username}: Usuario o contraseña incorrectos.")
+                return None
+        except Exception as e:
+            print(f"Error durante la autenticación: {e}")
+            return None
+        finally:
+            conn.close()
+            print("Conexión cerrada después de autenticar.")
+    else:
+        print("Error: No se pudo conectar a la base de datos para autenticar.")
+        return None
 
-# --- Función de Cambio de Vista ---
+# --- Función de Cambio de Vista (ACTUALIZADA) ---
 def change_view(page: ft.Page, index: int):
     """
-    Cambia la vista mostrada en el contenedor principal basado en el índice.
+    Cambia la vista mostrada en el contenedor principal basado en el índice
+    recibido desde el NavigationRail.
     """
-    global view_container, solicitudes_list_view, solicitud_form_view, settings_view
+    # Hacemos referencia a las variables globales que almacenan las vistas
+    global view_container, solicitudes_list_view, solicitud_form_view, settings_view, aid_types_crud_view
 
-    print(f"Cambiando a vista índice: {index}") # Para depuración
+    print(f"Navegando a la vista con índice: {index}")
 
-    view_container.content = None # Limpiar contenido anterior explícitamente
-    #view_container.controls.clear() # Limpiar controles por si acaso
+    # Limpiar el contenido actual antes de mostrar la nueva vista
+    view_container.content = ft.ProgressRing() # Mostrar un indicador de carga temporal
+    view_container.update()
 
-    if index == VIEW_HOME: # 0
-        # Si Home es igual a la lista, mostrar la lista
-        if solicitudes_list_view:
-            # Refrescar datos de la tabla al volver a esta vista
-            if _data_table_instance:
-                 fill_data_table(page, _data_table_instance)
-            view_container.content = solicitudes_list_view
-        else:
-            view_container.content = ft.Text("Error: Vista Home no construida")
-    elif index == VIEW_SOLICITUDES_LIST: # 1
-        if solicitudes_list_view:
-            # Refrescar datos de la tabla al volver a esta vista
-            if _data_table_instance:
-                 fill_data_table(page, _data_table_instance)
-            view_container.content = solicitudes_list_view
-        else:
-            view_container.content = ft.Text("Error: Vista Lista Solicitudes no construida")
+    # Seleccionar qué vista mostrar según el índice
+    content_to_display = None
+
+    if index == VIEW_HOME or index == VIEW_SOLICITUDES_LIST: # 0 o 1
+        print("Mostrando vista: Lista de Solicitudes")
+        if not solicitudes_list_view:
+             print("Creando instancia de solicitudes_list_view...")
+             solicitudes_list_view = build_solicitudes_view(page)
+        # Refrescar datos de la tabla de solicitudes si ya existe
+        if _data_table_instance:
+            print("Refrescando datos de la tabla de solicitudes...")
+            fill_data_table(page, _data_table_instance)
+        content_to_display = solicitudes_list_view
+
     elif index == VIEW_ADD_SOLICITUD: # 99 (Botón Add)
-        if solicitud_form_view:
-            view_container.content = solicitud_form_view
-            # Opcional: Limpiar el formulario cada vez que se muestra
-            # find_control(solicitud_form_view, "clear_button").invoke_handler() # Necesitaría adaptar solicitud.py para exponer/llamar clear_form
-        else:
-            view_container.content = ft.Text("Error: Vista Formulario Solicitud no construida")
+        print("Mostrando vista: Formulario Nueva Solicitud")
+        if not solicitud_form_view:
+            print("Creando instancia de solicitud_form_view...")
+            try:
+                # Intentar construir la vista del formulario
+                solicitud_form_view = build_solicitud_form_view(page)
+                print("Instancia de solicitud_form_view creada.")
+            except Exception as e:
+                print(f"*** ERROR CRÍTICO al construir solicitud_form_view: {e} ***")
+                # Mostrar un mensaje de error en lugar del formulario si falla la construcción
+                solicitud_form_view = ft.Column([
+                    ft.Text("Error al Cargar Formulario", size=20, color=ft.colors.RED),
+                    ft.Text(f"Detalle: {e}"),
+                ])
+        # Aquí podrías añadir lógica para limpiar el formulario si es necesario
+        # if hasattr(solicitud_form_view, 'clear_form'):
+        #     solicitud_form_view.clear_form()
+        content_to_display = solicitud_form_view
+
     elif index == VIEW_SETTINGS: # 2
-        if settings_view:
-            view_container.content = settings_view
+        print("Mostrando vista: Configuración")
+        if not settings_view:
+            print("Creando instancia de settings_view...")
+            # Vista de configuración simple por ahora
+            settings_view = ft.Column([ft.Text("Configuración General", size=20)])
+        content_to_display = settings_view
+
+    elif index == VIEW_MANAGE_AID_TYPES: # 3 (NUEVA VISTA CRUD)
+        print("Mostrando vista: Gestión Tipos de Ayuda")
+        if not aid_types_crud_view:
+            print("Creando instancia de aid_types_crud_view por primera vez...")
+            # Crear la instancia de la vista CRUD si no existe
+            aid_types_crud_view = AidTypesView(page)
         else:
-            # Crear una vista placeholder si no existe
-            settings_view = ft.Column([ft.Text("Vista de Configuración (Pendiente)", size=20)])
-            view_container.content = settings_view
+            # Si ya existe, refrescar sus datos para mostrar la información más reciente
+            print("Refrescando datos de aid_types_crud_view...")
+            # Verificar que el método exista antes de llamarlo
+            if hasattr(aid_types_crud_view, 'refresh_data') and callable(aid_types_crud_view.refresh_data):
+                 aid_types_crud_view.refresh_data()
+            else:
+                 print("Advertencia: El método 'refresh_data' no se encontró o no es llamable en AidTypesView.")
+        content_to_display = aid_types_crud_view
+
     else:
-        view_container.content = ft.Text(f"Vista desconocida: {index}")
+        # Caso para índices desconocidos
+        print(f"Índice de vista desconocido: {index}")
+        content_to_display = ft.Text(f"Vista no encontrada para el índice {index}", color=ft.colors.ORANGE)
 
-    view_container.update() # Actualizar el contenedor
-    # page.update() # No siempre necesario si solo actualizas el contenedor
+    # Asignar la vista seleccionada al contenedor y actualizar
+    view_container.content = content_to_display
+    view_container.update()
+    print("Vista actualizada en el contenedor.")
 
-# --- Construcción de la Interfaz Principal (Post-Login) ---
+
+# --- Construcción de la Interfaz Principal (ACTUALIZADA) ---
 def build_main_app_view(page: ft.Page):
-    """Construye y muestra la interfaz principal de la aplicación."""
-    global view_container, solicitudes_list_view, solicitud_form_view, settings_view
+    """Construye y muestra la interfaz principal de la aplicación después del login."""
+    # Hacemos referencia a las variables globales que almacenan las vistas
+    global view_container, solicitudes_list_view, solicitud_form_view, settings_view, aid_types_crud_view
 
-    print("Construyendo vista principal de la aplicación...")
+    print("Iniciando construcción de la vista principal de la aplicación...")
 
-    # 1. Limpiar la vista de login
-    page.clean()
-    page.title = "Sistema de Ayudas Sociales" # Cambiar título
-    # Resetear alineación y padding si es necesario
+    page.clean() # Limpiar la vista de login
+    page.title = "Sistema de Gestión de Ayudas Sociales"
+    # Restablecer alineaciones y padding para la vista principal
     page.vertical_alignment = ft.MainAxisAlignment.START
     page.horizontal_alignment = ft.CrossAxisAlignment.START
-    page.padding = 0 # El padding se maneja dentro de los contenedores
-    page.window_width = 1024 # Ajustar tamaño de ventana
-    page.window_height = 768
+    page.padding = 0 # Sin padding en la página principal, el contenedor lo maneja
+    page.window_width = 1150 # Ancho sugerido
+    page.window_height = 800 # Alto sugerido
 
-    # 2. Construir las vistas principales (hacerlo una vez)
-    # Asegurarse de que las funciones devuelven el control raíz de su vista
+    # --- Construcción inicial de las vistas principales ---
+    # Es buena idea intentar construir las vistas más usadas al inicio
+    # para que la navegación sea más rápida la primera vez.
+    # Manejar posibles errores durante la construcción.
     if not solicitudes_list_view:
-        solicitudes_list_view = build_solicitudes_view(page)
-    if not solicitud_form_view:
-        solicitud_form_view = build_solicitud_form_view(page)
-    # settings_view se crea bajo demanda en change_view o puedes crearlo aquí
+        try:
+            print("Construyendo vista 'Lista Solicitudes'...")
+            solicitudes_list_view = build_solicitudes_view(page)
+        except Exception as e:
+            print(f"Error construyendo solicitudes_list_view: {e}")
+            solicitudes_list_view = ft.Text(f"Error al cargar lista: {e}", color=ft.colors.RED)
 
-    # 3. Construir componentes persistentes (AppBar, NavigationRail)
+    if not solicitud_form_view:
+         try:
+            print("Construyendo vista 'Formulario Solicitud'...")
+            solicitud_form_view = build_solicitud_form_view(page)
+         except Exception as e:
+            print(f"Error construyendo solicitud_form_view: {e}")
+            # Guardamos un control de error para mostrar si se intenta navegar aquí
+            solicitud_form_view = ft.Text(f"Error al cargar formulario: {e}", color=ft.colors.RED)
+
+    # La vista aid_types_crud_view se creará bajo demanda en change_view
+
+    # --- Construir componentes fijos de la UI ---
     app_bar = build_app_bar()
-    # Pasar la función de cambio de vista al NavigationRail
+    # Pasar la función change_view como handler al menú
     navigation_rail = build_navigation_rail(lambda idx: change_view(page, idx))
 
-    # 4. Configurar el Layout Principal
+    # --- Ensamblar la página ---
     page.appbar = app_bar
     page.add(
         ft.Row(
             [
-                navigation_rail,
-                ft.VerticalDivider(width=1),
-                view_container, # El contenedor donde irán las vistas dinámicas
+                navigation_rail, # Menú lateral
+                ft.VerticalDivider(width=1), # Separador visual
+                view_container, # Contenedor donde cambian las vistas
             ],
-            expand=True, # La fila ocupa todo el espacio
+            expand=True, # Ocupar todo el espacio disponible
         )
     )
 
-    # 5. Mostrar la vista inicial por defecto
-    change_view(page, VIEW_SOLICITUDES_LIST) # Empezar mostrando la lista
+    # Mostrar la vista inicial por defecto (Lista de Solicitudes)
+    print("Estableciendo vista inicial...")
+    # Usamos el índice definido en menu.py para la vista inicial
+    initial_view_index = VIEW_SOLICITUDES_LIST
+    # Seleccionar visualmente la opción en el menú
+    navigation_rail.selected_index = initial_view_index
+    # Cargar el contenido de la vista inicial
+    change_view(page, initial_view_index)
 
-    page.update()
+    page.update() # Actualizar la página para mostrar todo
     print("Vista principal construida y mostrada.")
 
-# --- Construcción de la Interfaz de Login ---
+
+# --- Construcción de la Interfaz de Login (sin cambios significativos) ---
 def build_login_view(page: ft.Page, on_login_success):
     """Construye y muestra la interfaz de login."""
-    page.title = "Ayudas Sociales - Login"
+    page.clean() # Limpiar por si acaso
+    page.title = "Ayudas Sociales - Inicio de Sesión"
     page.vertical_alignment = ft.MainAxisAlignment.CENTER
     page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
     page.window_width = 400
-    page.window_height = 350 # Un poco más de espacio
+    page.window_height = 400 # Un poco más de espacio vertical
     page.padding = 20
 
     welcome_message = ft.Text("Bienvenido al Sistema", size=24, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER)
-    username_field = ft.TextField(label="Usuario", width=300, autofocus=True)
-    password_field = ft.TextField(label="Contraseña", password=True, can_reveal_password=True, width=300, on_submit=lambda e: login_clicked(e)) # Permitir login con Enter
-    login_button = ft.ElevatedButton(text="Iniciar Sesión", width=300)
-    error_message = ft.Text("", color=ft.colors.RED, text_align=ft.TextAlign.CENTER)
+    username_field = ft.TextField(label="Usuario", width=300, autofocus=True, border_radius=8)
+    password_field = ft.TextField(
+        label="Contraseña", password=True, can_reveal_password=True, width=300,
+        on_submit=lambda e: login_clicked(e), # Permitir login con Enter
+        border_radius=8
+    )
+    login_button = ft.ElevatedButton(text="Iniciar Sesión", width=300, height=40)
+    error_message = ft.Text("", color=ft.colors.RED, text_align=ft.TextAlign.CENTER, visible=False)
 
     def login_clicked(e):
         """Maneja el evento de clic en el botón de Iniciar Sesión."""
         username = username_field.value.strip()
         password = password_field.value
-        role = authenticate(username, password)
+        error_message.visible = False # Ocultar error previo
+        page.update()
+
+        if not username or not password:
+            error_message.value = "Usuario y contraseña son requeridos."
+            error_message.visible = True
+            page.update()
+            return
+
+        role = authenticate(username, password) # Llama a la función de autenticación
 
         if role:
-            print(f"Autenticación exitosa para {username} con rol {role}")
-            error_message.value = ""
-            error_message.update()
-            # Llamar a la función que construye la vista principal
+            # Si la autenticación es exitosa, llama a la función para construir la app principal
             on_login_success(page)
         else:
-            print(f"Autenticación fallida para {username}")
-            error_message.value = "Usuario o contraseña incorrectos"
-            error_message.update()
+            # Si falla, muestra mensaje de error
+            error_message.value = "Usuario o contraseña incorrectos."
+            error_message.visible = True
             password_field.value = "" # Limpiar contraseña
-            password_field.focus() # Poner foco en contraseña
-            password_field.update()
-
+            password_field.focus() # Poner foco de nuevo en contraseña
+            page.update()
 
     login_button.on_click = login_clicked
 
@@ -176,39 +267,55 @@ def build_login_view(page: ft.Page, on_login_success):
         ft.Column(
             [
                 welcome_message,
-                ft.Divider(height=20, color="transparent"),
+                ft.Divider(height=30, color="transparent"),
                 username_field,
                 password_field,
-                ft.Divider(height=10, color="transparent"),
+                ft.Divider(height=20, color="transparent"),
                 login_button,
                 error_message,
             ],
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-            alignment=ft.MainAxisAlignment.CENTER, # Centrar verticalmente la columna
+            alignment=ft.MainAxisAlignment.CENTER, # Centrar verticalmente
             spacing=15,
-            expand=True # Hacer que la columna ocupe el espacio vertical
+            expand=True # Ocupar espacio vertical
         )
     )
     page.update()
+    print("Vista de login mostrada.")
+
 
 # --- Punto de Entrada Principal ---
 def main(page: ft.Page):
-    # Mostrar la vista de login inicialmente, pasando la función
-    # que debe ejecutarse si el login es exitoso.
+    """Función principal que se pasa a ft.app()."""
+    # Iniciar mostrando la vista de login.
+    # Pasamos build_main_app_view como la función a llamar si el login es exitoso.
     build_login_view(page, build_main_app_view)
 
 # --- Ejecución de la Aplicación ---
 if __name__ == "__main__":
-    # Asegurar que la base de datos y las tablas existan antes de iniciar
+    print("Iniciando aplicación...")
     print("Verificando base de datos...")
-    conn = create_connection()
-    if conn:
-        create_table(conn)
-        conn.close()
-        print("Base de datos lista.")
-    else:
-        print("¡ERROR CRÍTICO! No se pudo conectar/crear la base de datos.")
-        # Podrías decidir no iniciar la app aquí si la DB es esencial
+    conn = None
+    try:
+        conn = create_connection()
+        if conn:
+            # Asegura que todas las tablas (incluida tipos_ayuda) existan
+            create_table(conn)
+            print("Base de datos verificada y lista.")
+        else:
+            # Si la conexión falla aquí, es un problema grave.
+            print("¡ERROR CRÍTICO! No se pudo conectar/crear la base de datos al inicio.")
+            # Podrías mostrar un error en Flet o simplemente salir.
+            # ft.app(target=lambda page: page.add(ft.Text("Error crítico de base de datos")))
+            exit(1) # Salir con código de error
+    except Exception as e:
+        print(f"Error durante la inicialización de la base de datos: {e}")
+        exit(1)
+    finally:
+        if conn:
+            conn.close()
+            print("Conexión de verificación inicial cerrada.")
 
     # Iniciar la aplicación Flet
     ft.app(target=main)
+    print("Aplicación finalizada.")

@@ -5,6 +5,7 @@ import flet as ft
 VIEW_HOME = 0
 VIEW_SOLICITUDES_LIST = 1
 VIEW_SETTINGS = 2
+VIEW_MANAGE_AID_TYPES = 3 # <-- Nuevo índice para gestionar tipos de ayuda
 VIEW_ADD_SOLICITUD = 99 # Un índice especial o diferente para el botón Add
 
 def build_navigation_rail(on_change_handler):
@@ -23,7 +24,7 @@ def build_navigation_rail(on_change_handler):
         min_extended_width=400,
         leading=ft.FloatingActionButton(
             icon=ft.Icons.ADD,
-            text="Add",
+            text="",
             tooltip="Registrar Nueva Solicitud",
             # Llama al handler con un índice específico para "Añadir"
             on_click=lambda e: on_change_handler(VIEW_ADD_SOLICITUD)
@@ -49,6 +50,12 @@ def build_navigation_rail(on_change_handler):
                 selected_icon=ft.Icons.SETTINGS,
                 label="Configuración", # Cambiado a Español
             ),
+            # --- Opción 3: Gestionar Tipos de Ayuda (NUEVO) ---
+            ft.NavigationRailDestination(
+                icon=ft.Icons.CATEGORY_OUTLINED, # Icono sugerido
+                selected_icon=ft.Icons.CATEGORY, # Icono sugerido
+                label="Tipos Ayuda", # Etiqueta para la nueva opción
+            ),
         ],
         # Llama al handler con el índice seleccionado
         on_change=lambda e: on_change_handler(e.control.selected_index),
@@ -58,4 +65,3 @@ def build_navigation_rail(on_change_handler):
 # La función handle_navigation_change ya no es necesaria aquí,
 # la lógica se pasa directamente al on_change del NavigationRail
 # y se maneja en la función 'on_change_handler' que se pasa desde fuera.
-
